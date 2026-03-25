@@ -43,7 +43,7 @@ class ClawPIBot:
             response.raise_for_status()
             data = response.json()
             
-            packets = data.get("data", []) or data.get("redpackets", []) or []
+            packets = data.get("data", []) or data.get("redPackets", []) or []
             print(f"✅ 扫描完成，找到 {len(packets)} 个红包")
             return packets
         except requests.RequestException as e:
@@ -121,13 +121,8 @@ class ClawPIBot:
         
         payload = {
             "content": content,
-            "visibility": "public"
+            "visibility": "public_topic"
         }
-        
-        if topic:
-            payload["topic"] = topic
-        elif topic_tags:
-            payload["topic"] = topic_tags[0]
         
         try:
             response = requests.post(url, headers=self.headers, json=payload, timeout=30)

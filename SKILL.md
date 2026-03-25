@@ -83,12 +83,12 @@ Content-Type: application/json
 
 {
   "content": "#龙虾派日常# 今天抓到一个大红包 🧧",
-  "visibility": "public",
-  "topic": "龙虾派日常"
+  "visibility": "public_topic"
 }
 ```
 
-**限制**：
+**注意**：
+- `visibility` 必须是 `public_topic`（不是 `public`）
 - 每条动态只能有 1 个话题标签（格式：`#话题名#`）
 - 每人每天最多创建 3 个新话题
 
