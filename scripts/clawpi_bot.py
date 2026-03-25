@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
 ClawPI 自动化机器人
-用于自动扫描和领取红包、发动态等操作
+用于自动扫描和领取红包、发动态、话题操作等
 """
 
 import argparse
 import json
 import sys
+import re
 from typing import Optional
 
 # 尝试导入 requests，如果不可用则提示用户
@@ -91,15 +92,18 @@ class ClawPIBot:
             print(f"❌ 领取红包请求失败: {e}")
             return {"success": False, "error": str(e)}
     
-    def post_moment(self, content: str) -> bool:
+    def post_moment(self, content: str, visibility: str = "followers") -> bool:
         """发动态"""
         url = f"{CLAWPI_API_BASE}/api/moments/create"
-        payload = {"content": content}
+        payload = {
+            "content": content,
+            "visibility": visibility
+        }
         
         try:
             response = requests.post(url, headers=self.headers, json=payload, timeout=30)
             if response.status_code == 200:
-                print(f"✅ 动态发布成功!")
+                print(f"✅ 动态发布成功! (可见性: {visibility})")
                 return True
             else:
                 print(f"⚠️ 动态发布失败: {response.status_code}")
@@ -107,6 +111,89 @@ class ClawPIBot:
         except requests.RequestException as e:
             print(f"❌ 发动态请求失败: {e}")
             return False
+    
+    def post_public_moment(self, content: str, topic: Optional[str] = None) -> bool:
+        """发公开话题动态"""
+        url = f"{CLAWPI_API_BASE}/api/moments/create"
+        
+        # 从内容中提取话题标签
+        topic_tags = re.findall(r'#([^#]+)#', content)
+        
+        payload = {
+            "content": content,
+            "visibility": "public"
+        }
+        
+        if topic:
+            payload["topic"] = topic
+        elif topic_tags:
+            payload["topic"] = topic_tags[0]
+        
+        try:
+            response = requests.post(url, headers=self.headers, json=payload, timeout=30)
+            data = response.json()
+            
+            if response.status_code == 200:
+                topic_info = f" 话题: {payload.get('topic', '无')}" if payload.get('topic') else ""
+                print(f"✅ 公开动态发布成功!{topic_info}")
+                return True
+            else:
+                error_msg = data.get("message", f"HTTP {response.status_code}")
+                print(f"⚠️ 公开动态发布失败: {error_msg}")
+                return False
+        except requests.RequestException as e:
+            print(f"❌ 发动态请求失败: {e}")
+            return False
+    
+    def get_trending_topics(self) -> list:
+        """获取热门话题"""
+        url = f"{CLAWPI_API_BASE}/api/topics/trending"
+        
+        try:
+            response = requests.get(url, headers=self.headers, timeout=30)
+            response.raise_for_status()
+            data = response.json()
+            
+            topics = data.get("data", []) or data.get("topics", []) or []
+            print(f"✅ 获取热门话题成功，共 {len(topics)} 个")
+            return topics
+        except requests.RequestException as e:
+            print(f"❌ 获取热门话题失败: {e}")
+            return []
+    
+    def search_topics(self, query: str) -> list:
+        """搜索话题"""
+        url = f"{CLAWPI_API_BASE}/api/topics/search"
+        params = {"query": query}
+        
+        try:
+            response = requests.get(url, headers=self.headers, params=params, timeout=30)
+            response.raise_for_status()
+            data = response.json()
+            
+            topics = data.get("data", []) or data.get("topics", []) or []
+            print(f"✅ 搜索话题成功，找到 {len(topics)} 个相关话题")
+            return topics
+        except requests.RequestException as e:
+            print(f"❌ 搜索话题失败: {e}")
+            return []
+    
+    def get_topic_moments(self, topic: str, limit: int = 20) -> list:
+        """获取话题动态"""
+        url = f"{CLAWPI_API_BASE}/api/topics/{topic}/moments"
+        params = {"limit": limit}
+        
+        try:
+            response = requests.get(url, headers=self.headers, params=params, timeout=30)
+            response.raise_for_status()
+            data = response.json()
+            
+            moments = data.get("data", []) or data.get("moments", []) or []
+            print(f"✅ 获取话题 #{topic}# 动态成功，共 {len(moments)} 条")
+            return moments
+        except requests.RequestException as e:
+            print(f"❌ 获取话题动态失败: {e}")
+            return []
     
     def follow_user(self, target_agent_id: str) -> bool:
         """关注用户"""
@@ -169,13 +256,19 @@ def main():
     parser = argparse.ArgumentParser(description="ClawPI 自动化机器人")
     parser.add_argument("--jwt", required=True, help="你的 JWT Token")
     parser.add_argument("--action", required=True, 
-                        choices=["scan", "claim", "auto", "post", "follow"],
+                        choices=["scan", "claim", "auto", "post", "post-public", 
+                                 "trending-topics", "search-topics", "topic-moments", "follow"],
                         help="执行的操作")
     parser.add_argument("--redpacket-id", type=int, help="红包ID (用于claim操作)")
     parser.add_argument("--payment-link", help="收款链接 (用于claim操作)")
     parser.add_argument("--content", help="动态内容 (用于post操作)")
+    parser.add_argument("--topic", help="话题名称 (用于post-public/topic-moments操作)")
+    parser.add_argument("--query", help="搜索关键词 (用于search-topics操作)")
     parser.add_argument("--target-id", help="目标用户ID (用于follow操作)")
     parser.add_argument("--amount", default="100000", help="金额 (默认: 100000)")
+    parser.add_argument("--visibility", default="followers", 
+                        choices=["public", "followers"],
+                        help="动态可见性 (默认: followers)")
     
     args = parser.parse_args()
     
@@ -201,7 +294,31 @@ def main():
         if not args.content:
             print("❌ post 操作需要 --content 参数")
             sys.exit(1)
-        bot.post_moment(args.content)
+        bot.post_moment(args.content, args.visibility)
+    
+    elif args.action == "post-public":
+        if not args.content:
+            print("❌ post-public 操作需要 --content 参数")
+            sys.exit(1)
+        bot.post_public_moment(args.content, args.topic)
+    
+    elif args.action == "trending-topics":
+        topics = bot.get_trending_topics()
+        print(json.dumps(topics, indent=2, ensure_ascii=False))
+    
+    elif args.action == "search-topics":
+        if not args.query:
+            print("❌ search-topics 操作需要 --query 参数")
+            sys.exit(1)
+        topics = bot.search_topics(args.query)
+        print(json.dumps(topics, indent=2, ensure_ascii=False))
+    
+    elif args.action == "topic-moments":
+        if not args.topic:
+            print("❌ topic-moments 操作需要 --topic 参数")
+            sys.exit(1)
+        moments = bot.get_topic_moments(args.topic)
+        print(json.dumps(moments, indent=2, ensure_ascii=False))
     
     elif args.action == "follow":
         if not args.target_id:
