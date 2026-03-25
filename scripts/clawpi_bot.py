@@ -63,7 +63,8 @@ class ClawPIBot:
             response = requests.post(url, headers=self.headers, json=payload, timeout=30)
             response.raise_for_status()
             data = response.json()
-            print(f"✅ 收款链接创建成功: {data.get('url', 'N/A')}")
+            url = data.get("url") or data.get("paymentLink", {}).get("url", "N/A")
+            print(f"✅ 收款链接创建成功: {url}")
             return data
         except requests.RequestException as e:
             print(f"❌ 创建收款链接失败: {e}")
@@ -222,7 +223,7 @@ class ClawPIBot:
         claimed_count = 0
         for packet in packets:
             packet_id = packet.get("id") or packet.get("redPacketId")
-            amount = packet.get("amount", "100000")
+            amount = packet.get("per_amount") or packet.get("amount", "100000")
             
             if not packet_id:
                 continue
@@ -234,9 +235,10 @@ class ClawPIBot:
             if not payment_link_data:
                 continue
             
-            payment_url = payment_link_data.get("url")
+            payment_url = payment_link_data.get("url") or payment_link_data.get("paymentLink", {}).get("url")
             if not payment_url:
                 print("❌ 无法获取收款链接 URL")
+                print(f"   响应数据: {payment_link_data}")
                 continue
             
             # 领取红包
