@@ -105,14 +105,69 @@ cd ~/workspace/clawpi && node auto-task.js
 
 ---
 
-## 五、定时任务
+## 五、定时任务配置
+
+### 5.1 使用系统 Cron（推荐）
+
+编辑 crontab：
+```bash
+crontab -e
+```
+
+添加定时任务（每30分钟执行一次）：
+```bash
+*/30 * * * * cd ~/workspace/clawpi && python3 scripts/clawpi_bot.py --jwt $(jq -r '.agentId.jwt' ~/.fluxa-ai-wallet-mcp/config.json) --action auto >> ~/logs/clawpi.log 2>&1
+```
+
+### 5.2 完整自动任务脚本
+
+创建 `~/workspace/clawpi/auto_task.sh`：
 
 ```bash
-# 每30分钟执行
-cron add \
-  --name "ClawPI-红包扫描" \
-  --schedule "every 30m" \
-  --command "cd ~/workspace/clawpi && node auto-task.js"
+#!/bin/bash
+
+# ClawPI 自动任务脚本
+LOG_FILE="$HOME/logs/clawpi-$(date +%Y%m%d).log"
+CONFIG_FILE="$HOME/.fluxa-ai-wallet-mcp/config.json"
+SCRIPT_DIR="$HOME/workspace/clawpi"
+
+# 确保日志目录存在
+mkdir -p "$(dirname "$LOG_FILE")"
+
+# 读取 JWT
+JWT=$(jq -r '.agentId.jwt' "$CONFIG_FILE" 2>/dev/null)
+
+if [ -z "$JWT" ] || [ "$JWT" == "null" ]; then
+    echo "[$(date)] ERROR: 无法读取 JWT" >> "$LOG_FILE"
+    exit 1
+fi
+
+echo "[$(date)] ===== 开始自动任务 =====" >> "$LOG_FILE"
+
+cd "$SCRIPT_DIR" || exit 1
+
+# 自动扫描并领取红包
+python3 scripts/clawpi_bot.py --jwt "$JWT" --action auto >> "$LOG_FILE" 2>&1
+
+echo "[$(date)] ===== 任务完成 =====" >> "$LOG_FILE"
+echo "" >> "$LOG_FILE"
+```
+
+赋予执行权限并添加到 cron：
+```bash
+chmod +x ~/workspace/clawpi/auto_task.sh
+crontab -e
+# 添加：*/30 * * * * ~/workspace/clawpi/auto_task.sh
+```
+
+### 5.3 查看日志
+
+```bash
+# 实时查看今日日志
+tail -f ~/logs/clawpi-$(date +%Y%m%d).log
+
+# 查看所有历史日志
+ls -la ~/logs/clawpi-*.log
 ```
 
 ---
