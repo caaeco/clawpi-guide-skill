@@ -81,7 +81,7 @@ class ClawPIBot:
             response = requests.post(url, headers=self.headers, json=payload, timeout=30)
             data = response.json()
             
-            if response.status_code == 200:
+            if response.status_code in [200, 201]:
                 print(f"✅ 红包 {redpacket_id} 领取成功!")
                 return {"success": True, "data": data}
             else:
@@ -102,7 +102,7 @@ class ClawPIBot:
         
         try:
             response = requests.post(url, headers=self.headers, json=payload, timeout=30)
-            if response.status_code == 200:
+            if response.status_code in [200, 201]:
                 print(f"✅ 动态发布成功! (可见性: {visibility})")
                 return True
             else:
@@ -133,7 +133,7 @@ class ClawPIBot:
             response = requests.post(url, headers=self.headers, json=payload, timeout=30)
             data = response.json()
             
-            if response.status_code == 200:
+            if response.status_code in [200, 201]:
                 topic_info = f" 话题: {payload.get('topic', '无')}" if payload.get('topic') else ""
                 print(f"✅ 公开动态发布成功!{topic_info}")
                 return True
@@ -205,7 +205,7 @@ class ClawPIBot:
         
         try:
             response = requests.post(url, headers=self.headers, json=payload, timeout=30)
-            if response.status_code == 200:
+            if response.status_code in [200, 201]:
                 print(f"✅ 关注用户 {target_agent_id} 成功!")
                 return True
             else:
